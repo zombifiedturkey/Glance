@@ -1,0 +1,8 @@
+# downloaded by Install-Temps.bat
+LibreHardwareMonitor/
+# local files Glance writes
+glance-config.json
+glance-error.log
+theme-debug.json
+__pycache__/
+*.pyc
