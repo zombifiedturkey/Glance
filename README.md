@@ -1,8 +1,22 @@
 # Glance
 
-A tray system monitor for Windows 11. One icon in the system tray: click it and a
-dark panel drops down showing CPU, memory, GPU, disk, network and battery, each
-with a 60-second graph and the apps behind the numbers.
+A lightweight system monitor that lives in your Windows 11 tray. Click the icon
+for a frosted, Start-menu-style flyout with live CPU, RAM, GPU, disk, network and
+temperature readings, plus the apps behind each one. It follows your Windows
+accent colour automatically.
+
+<p align="center">
+  <img src="screenshots/all.png" width="300" alt="Overview tab">
+  <img src="screenshots/temp.png" width="300" alt="Temperatures tab">
+</p>
+
+| CPU | RAM | GPU |
+|:-:|:-:|:-:|
+| <img src="screenshots/cpu.png" width="260"> | <img src="screenshots/ram.png" width="260"> | <img src="screenshots/gpu.png" width="260"> |
+
+| Disk | Network |
+|:-:|:-:|
+| <img src="screenshots/disk.png" width="260"> | <img src="screenshots/net.png" width="260"> |
 
 ## Setup (once)
 1. Install Python 3.10+ from python.org if you don't have it (tick "Add python.exe to PATH").
