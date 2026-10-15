@@ -1,0 +1,27 @@
+Glance includes the following open-source components. Each is used unmodified and
+remains under its own licence; source code is available from the links below.
+
+LibreHardwareMonitor (sensor library)
+  Licence: Mozilla Public License 2.0
+  Source:  https://github.com/LibreHardwareMonitor/LibreHardwareMonitor
+
+Qt for Python (PySide6) and Qt
+  Licence: GNU Lesser General Public License v3
+  Source:  https://code.qt.io/cgit/pyside/pyside-setup.git
+  Qt and PySide6 are dynamically linked and ship as separate DLL/PYD files in the
+  install folder, so you may replace them with your own builds.
+
+Python
+  Licence: Python Software Foundation License
+  Source:  https://www.python.org
+
+psutil
+  Licence: BSD 3-Clause
+  Source:  https://github.com/giampaolo/psutil
+
+Python.NET (pythonnet) and clr-loader
+  Licence: MIT
+  Source:  https://github.com/pythonnet/pythonnet
+
+PawnIO (optional driver, downloaded during setup, not bundled)
+  Source:  https://github.com/namazso/PawnIO.Setup

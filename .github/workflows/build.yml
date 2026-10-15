@@ -1,0 +1,91 @@
+name: Build installer
+
+# Push a tag like v1.0.0 to build and publish a release.
+# "Run workflow" on the Actions tab builds without publishing (files appear under the run).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  LHM_VERSION: v0.9.6
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Read version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path glance.pyw -Pattern '^__version__ = "(.+)"').Matches[0].Groups[1].Value
+          if ("${{ github.ref_type }}" -eq "tag" -and "${{ github.ref_name }}" -ne "v$v") {
+            throw "Tag ${{ github.ref_name }} doesn't match __version__ $v in glance.pyw"
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pythonnet pyinstaller
+
+      - name: Build Glance.exe
+        run: >
+          pyinstaller --noconfirm --clean --windowed --name Glance
+          --icon assets/glance.ico
+          --collect-all pythonnet --collect-all clr_loader --hidden-import clr
+          glance.pyw
+
+      - name: Add LibreHardwareMonitor sensor library
+        shell: pwsh
+        run: |
+          $url = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/download/$env:LHM_VERSION/LibreHardwareMonitor.zip"
+          Invoke-WebRequest $url -OutFile lhm.zip
+          Expand-Archive lhm.zip dist/Glance/LibreHardwareMonitor -Force
+          Get-ChildItem -Recurse dist/Glance/LibreHardwareMonitor | Unblock-File
+          if (-not (Test-Path dist/Glance/LibreHardwareMonitor/LibreHardwareMonitorLib.dll)) { throw "LibreHardwareMonitorLib.dll missing" }
+
+      - name: Self-test the packaged app
+        shell: pwsh
+        run: |
+          $p = Start-Process dist/Glance/Glance.exe -ArgumentList '--selftest', "$PWD\selftest.json" -Wait -PassThru
+          Get-Content selftest.json
+          if ($p.ExitCode -ne 0) { throw "Self-test failed (exit $($p.ExitCode))" }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" installer\glance.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+
+      - name: Portable zip
+        shell: pwsh
+        run: |
+          Copy-Item THIRD-PARTY-NOTICES.txt dist/Glance/
+          Compress-Archive dist/Glance "release/Glance-${{ steps.ver.outputs.version }}-portable.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Glance-${{ steps.ver.outputs.version }}
+          path: release/*
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Glance ${{ steps.ver.outputs.version }}
+          files: release/*
+          generate_release_notes: true

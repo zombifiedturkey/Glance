@@ -19,7 +19,14 @@ import threading
 import traceback
 from collections import deque, defaultdict
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+__version__ = "1.0.0"
+FROZEN = getattr(sys, "frozen", False)          # running from the installed Glance.exe
+# APP_DIR: where Glance's own files live (read-only when installed in Program Files)
+APP_DIR = os.path.dirname(sys.executable) if FROZEN else os.path.dirname(os.path.abspath(__file__))
+# HERE: where Glance writes its config, logs and debug files
+HERE = (os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "Glance")
+        if FROZEN else APP_DIR)
+os.makedirs(HERE, exist_ok=True)
 LOG_PATH = os.path.join(HERE, "glance-error.log")
 
 
@@ -346,7 +353,7 @@ def parse_gpu(items):
 # Temperatures come from LibreHardwareMonitor's open-source library, the same
 # approach as HWMonitor: a small reader runs with admin rights (Windows asks
 # once when it starts) and hands readings to the panel through a JSON file.
-LHM_DIR = os.path.join(HERE, "LibreHardwareMonitor")
+LHM_DIR = os.path.join(APP_DIR, "LibreHardwareMonitor")
 SENSOR_FILE = os.path.join(os.environ.get("LOCALAPPDATA") or HERE, "Glance", "sensors.json")
 STOP_FILE = SENSOR_FILE + ".stop"
 CPU_TEMP_NAMES = ("CPU Package", "Core (Tctl/Tdie)", "Core (Tctl)", "Tctl/Tdie", "Tdie", "Core Max",
@@ -1355,7 +1362,7 @@ class TempsPage(Section):
         if self.mode == "enable" and self.on_enable:
             self.on_enable()
         elif self.mode == "folder" and IS_WIN:
-            os.startfile(HERE)
+            os.startfile(APP_DIR)
         elif self.mode == "lhm" and IS_WIN:
             exe = find_lhm_exe()
             if exe:
@@ -1392,6 +1399,10 @@ class TempsPage(Section):
         elif status == "stopped":
             self._show_setup("Sensor reader stopped", "It isn't running at the moment.",
                              "Start it again", "enable")
+        elif status in ("no_lib", "no_pythonnet") and FROZEN:
+            self._show_setup("Sensor library missing",
+                             "Part of Glance's install is missing. Reinstalling Glance will fix it."
+                             + (f"\n\nDetails: {t['error']}" if t.get("error") else ""))
         elif status in ("no_lib", "no_pythonnet"):
             self._show_setup("One-time setup needed",
                              "Run Install-Temps.bat in the Glance folder. It downloads the open-source "
@@ -1850,12 +1861,20 @@ def make_tray_icon(style, value, hot):
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 
-def autostart_command():
+def self_command():
+    """(program, leading args) that start this copy of Glance."""
+    if FROZEN:
+        return sys.executable, ""
     exe = sys.executable
     pyw = os.path.join(os.path.dirname(exe), "pythonw.exe")
     if os.path.exists(pyw):
         exe = pyw
-    return f'"{exe}" "{os.path.abspath(__file__)}"'
+    return exe, f'"{os.path.abspath(__file__)}" '
+
+
+def autostart_command():
+    exe, args = self_command()
+    return f'"{exe}" {args}'.strip()
 
 
 def autostart_enabled():
@@ -1952,6 +1971,9 @@ class Glance(QObject):
             QMenu::item {{ padding:6px 22px 6px 26px; border-radius:5px; }}
             QMenu::item:selected {{ background:#3a3a3a; }}
             QMenu::separator {{ height:1px; background:#3d3d3d; margin:4px 6px; }}""")
+        ver = QAction(f"Glance {__version__}", menu)
+        ver.setEnabled(False)
+        menu.addAction(ver)
         open_a = QAction("Open Glance", menu)
         open_a.triggered.connect(self.toggle_panel)
         menu.addAction(open_a)
@@ -2026,15 +2048,11 @@ class Glance(QObject):
             pass
         self.temps_state = "starting"
         self.temps_launch_t = time.time()
-        exe = sys.executable
-        pyw = os.path.join(os.path.dirname(exe), "pythonw.exe")
-        if os.path.exists(pyw):
-            exe = pyw
-        params = (f'"{os.path.abspath(__file__)}" --sensors --parent {os.getpid()} '
-                  f'--out "{SENSOR_FILE}"')
+        exe, args = self_command()
+        params = f'{args}--sensors --parent {os.getpid()} --out "{SENSOR_FILE}"'
 
         def launch():
-            r = ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, params, HERE, 0)
+            r = ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, params, APP_DIR, 0)
             self.temps_state = "launched" if r > 32 else "declined"
 
         threading.Thread(target=launch, daemon=True).start()
@@ -2171,7 +2189,40 @@ def _arg(name, default=None):
     return default
 
 
+def selftest(out_path):
+    """Used by the release build: prove the packaged app can start and find its parts."""
+    report = {"version": __version__, "frozen": FROZEN}
+    try:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        app = QApplication.instance() or QApplication(sys.argv)
+        Panel(False, False)
+        report["qt"] = "ok"
+        s = Sampler()
+        d = s.sample()
+        report["sampler"] = f"cpu {d['cpu']['total']:.0f}% mem {d['mem']['pct']:.0f}%"
+        report["gpu_counters"] = s.gpu.ok
+        dll = find_lhm_dll()
+        report["lhm_dll"] = dll
+        import pythonnet
+        pythonnet.load("netfx")
+        import clr
+        clr.AddReference(dll)
+        from LibreHardwareMonitor.Hardware import Computer  # noqa: F401
+        report["pythonnet"] = "ok"
+        report["ok"] = True
+        del app
+    except Exception as e:
+        report["ok"] = False
+        report["error"] = f"{type(e).__name__}: {e}"
+        report["trace"] = traceback.format_exc()
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=1)
+    return 0 if report["ok"] else 1
+
+
 if __name__ == "__main__":
+    if "--selftest" in sys.argv:
+        sys.exit(selftest(_arg("--selftest", "selftest.json")))
     if "--sensors" in sys.argv:
         try:
             sensor_helper(_arg("--out", SENSOR_FILE), int(_arg("--parent", "0")))

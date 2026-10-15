@@ -18,16 +18,30 @@ accent colour automatically.
 |:-:|:-:|
 | <img src="screenshots/disk.png" width="260"> | <img src="screenshots/net.png" width="260"> |
 
-## Setup (once)
-1. Install Python 3.10+ from python.org if you don't have it (tick "Add python.exe to PATH").
-2. Double-click **Install.bat**.
+## Install
+Download **Glance-Setup-x.y.z.exe** from the [latest release](https://github.com/zombifiedturkey/Glance/releases/latest)
+and run it. Nothing else is needed: Python and everything Glance uses come bundled.
+During setup you can tick:
+- **Install the PawnIO driver**: needed for CPU and motherboard temperatures (GPU and
+  drive temperatures work without it). It's downloaded from PawnIO's official release.
+- **Start Glance when I sign in to Windows**
+
+Windows SmartScreen may warn that the installer is from an unknown publisher, because
+it isn't code-signed. Click **More info → Run anyway**.
+
+Prefer no installer? Grab **Glance-x.y.z-portable.zip**, unzip it anywhere and run
+`Glance.exe`.
+
+### Running from source
+1. Install Python 3.10+ from python.org (tick "Add python.exe to PATH").
+2. Double-click **Install.bat**, then **Install-Temps.bat** for temperatures.
 3. Double-click **Start Glance.bat**.
 
 Windows 11 hides new tray icons under the ^ arrow. To keep Glance visible, drag
 its icon onto the taskbar, or turn it on in Settings > Personalization >
 Taskbar > Other system tray icons.
 
-## Temperatures (optional, once)
+## Temperatures (running from source)
 Temperatures work like HWMonitor: reading the sensors needs admin rights and a
 small signed driver.
 1. Double-click **Install-Temps.bat**. It installs `pythonnet` and downloads the

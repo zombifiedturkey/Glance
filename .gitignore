@@ -6,3 +6,10 @@ glance-error.log
 theme-debug.json
 __pycache__/
 *.pyc
+# build output
+build/
+dist/
+release/
+*.spec
+selftest.json
+lhm.zip
